@@ -51,7 +51,7 @@ def calculate_indicators(df):
     df['SMA_50'] = df['close'].rolling(window=50).mean()
     df['SMA_200'] = df['close'].rolling(window=200).mean()
     
-    df.fillna(method='bfill', inplace=True)
+    df.bfill(inplace=True)
     return df
 
 def find_extrema(df, order=5):
