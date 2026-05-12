@@ -52,13 +52,11 @@ def detect_patterns(df):
     lows = df['low'].values
     
     # Very naive Double Top detection:
-    # Requires two peaks of similar height separated by a dip.
-    # Let's say last 20 candles for context.
     if len(df) >= 20:
         recent_highs = highs[-20:]
         max1 = max(recent_highs[:10])
         max2 = max(recent_highs[10:])
-        if abs(max1 - max2) / max1 < 0.005:  # Within 0.5%
+        if abs(max1 - max2) / max1 < 0.02:  # Yüzde 2 tolerans (gevşetildi)
             return "Çift Tepe (Double Top)", "Düşüş"
             
     # Very naive Double Bottom detection:
@@ -66,13 +64,15 @@ def detect_patterns(df):
         recent_lows = lows[-20:]
         min1 = min(recent_lows[:10])
         min2 = min(recent_lows[10:])
-        if abs(min1 - min2) / min1 < 0.005:  # Within 0.5%
+        if abs(min1 - min2) / min1 < 0.02:  # Yüzde 2 tolerans (gevşetildi)
             return "Çift Dip (Double Bottom)", "Yükseliş"
 
-    # Head and Shoulders (OBO)
-    if len(df) >= 30:
-        # Simplistic approach
-        pass
+    # Eğer formasyon yoksa, test amaçlı basit trend gösterelim
+    if len(df) >= 10:
+        if closes[-1] > closes[-10] * 1.05: # Son 10 muma göre %5'ten fazla artış
+            return "Güçlü Yükseliş Trendi", "Yükseliş"
+        elif closes[-1] < closes[-10] * 0.95: # Son 10 muma göre %5'ten fazla düşüş
+            return "Güçlü Düşüş Trendi", "Düşüş"
 
     return None
 
