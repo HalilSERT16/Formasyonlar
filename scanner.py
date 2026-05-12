@@ -2,18 +2,19 @@ import requests
 import pandas as pd
 import numpy as np
 
-BINANCE_API_URL = "https://api.binance.com/api/v3"
+BINANCE_API_URL = "https://data-api.binance.vision/api/v3"
 
 def get_top_coins(limit=50):
     try:
         url = f"{BINANCE_API_URL}/ticker/24hr"
         response = requests.get(url, timeout=10)
+        response.raise_for_status() # Raise error for 403, 429, etc.
         data = response.json()
         usdt_pairs = [d for d in data if d['symbol'].endswith('USDT')]
         usdt_pairs.sort(key=lambda x: float(x['quoteVolume']), reverse=True)
-        return [pair['symbol'] for pair in usdt_pairs[:limit]]
+        return [pair['symbol'] for pair in usdt_pairs[:limit]], None
     except Exception as e:
-        return []
+        return [], str(e)
 
 def get_klines(symbol, interval, limit=200):
     try:
@@ -128,9 +129,9 @@ def detect_advanced_patterns(df, peaks, troughs):
 
 def scan_markets(limit=50, interval='1h'):
     try:
-        symbols = get_top_coins(limit)
-        if not symbols:
-            return {"error": "Binance API'den coin listesi alınamadı."}
+        symbols, err = get_top_coins(limit)
+        if err or not symbols:
+            return {"error": f"Binance API'ye ulaşılamadı (Railway IP bloku veya Timeout). Detay: {err}"}
             
         results = []
         
