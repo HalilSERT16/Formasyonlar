@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grafik Formasyonları Panosu</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <header class="top-header">
+        <h1>Grafik Formasyonları</h1>
+        <div class="controls-container">
+            <div class="control-group">
+                <label>Tarama Limiti</label>
+                <select id="scanLimit">
+                    <option value="50">Top 50 Coin</option>
+                    <option value="100">Top 100 Coin</option>
+                    <option value="200">Top 200 Coin</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>Zaman Dilimi</label>
+                <select id="timeframe">
+                    <option value="15m">15 Dakika</option>
+                    <option value="1 Saat" selected>1 Saat</option>
+                    <option value="4 Saat">4 Saat</option>
+                    <option value="1 Gün">1 Gün</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <input type="text" id="quickSearch" placeholder="Hızlı Arama (Örn: BTC)">
+            </div>
+            
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button id="scanBtn" class="scan-btn">Tara</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="table-container">
+        <table id="resultsTable">
+            <thead>
+                <tr>
+                    <th>COİN</th>
+                    <th>BORSA</th>
+                    <th>ZAMAN DİLİMİ</th>
+                    <th>FORMASYON</th>
+                    <th>YÖN</th>
+                    <th>GRAFİK</th>
+                </tr>
+            </thead>
+            <tbody id="resultsBody">
+                <tr class="empty-row">
+                    <td colspan="6">Uygun formasyon bulunamadı. Lütfen "Tara" butonuna basın.</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div id="loader" class="loader-container" style="display: none;">
+            <div class="spinner"></div>
+            <p>Piyasalar taranıyor, lütfen bekleyin...</p>
+        </div>
+    </main>
+
+    <script>
+        document.getElementById('scanBtn').addEventListener('click', async () => {
+            const limit = document.getElementById('scanLimit').value;
+            const timeframe = document.getElementById('timeframe').value;
+            
+            const tbody = document.getElementById('resultsBody');
+            const loader = document.getElementById('loader');
+            
+            tbody.innerHTML = '';
+            loader.style.display = 'flex';
+            
+            try {
+                const response = await fetch(`/api/scan?limit=${limit}&interval=${timeframe}`);
+                const data = await response.json();
+                
+                loader.style.display = 'none';
+                
+                if (data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr class="empty-row">
+                            <td colspan="6">Uygun formasyon bulunamadı.</td>
+                        </tr>
+                    `;
+                } else {
+                    data.forEach(item => {
+                        const tr = document.createElement('tr');
+                        
+                        let directionColor = item.direction === 'Yükseliş' ? 'color-green' : 'color-red';
+                        
+                        tr.innerHTML = `
+                            <td class="coin-name">${item.coin}</td>
+                            <td>${item.exchange}</td>
+                            <td>${item.timeframe}</td>
+                            <td>${item.formation}</td>
+                            <td class="${directionColor}">${item.direction}</td>
+                            <td><a href="${item.chart_link}" target="_blank" class="chart-btn">İncele</a></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+                
+                // Hızlı arama filtresini uygula
+                filterTable();
+                
+            } catch (error) {
+                console.error("Error fetching data:", error);
+                loader.style.display = 'none';
+                tbody.innerHTML = `
+                    <tr class="empty-row">
+                        <td colspan="6">Veri çekilirken bir hata oluştu.</td>
+                    </tr>
+                `;
+            }
+        });
+
+        document.getElementById('quickSearch').addEventListener('input', filterTable);
+
+        function filterTable() {
+            const searchTerm = document.getElementById('quickSearch').value.toLowerCase();
+            const rows = document.querySelectorAll('#resultsBody tr:not(.empty-row)');
+            
+            rows.forEach(row => {
+                const coinName = row.querySelector('.coin-name').textContent.toLowerCase();
+                if (coinName.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
