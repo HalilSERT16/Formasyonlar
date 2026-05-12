@@ -111,14 +111,25 @@
                 
                 loader.style.display = 'none';
                 
-                if (data.length === 0) {
+                if (data.error) {
                     tbody.innerHTML = `
                         <tr class="empty-row">
-                            <td colspan="6">Uygun formasyon bulunamadı.</td>
+                            <td colspan="6" style="color: #ef4444; font-weight: bold;">Sunucu Hatası: ${data.error}</td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                const results = data.data || [];
+
+                if (results.length === 0) {
+                    tbody.innerHTML = `
+                        <tr class="empty-row">
+                            <td colspan="6">Uygun formasyon bulunamadı. Lütfen zaman dilimini veya limiti değiştirin.</td>
                         </tr>
                     `;
                 } else {
-                    data.forEach((item, index) => {
+                    results.forEach((item, index) => {
                         // Store chart data for later modal use
                         const id = `coin-${index}`;
                         window.cryptoData[id] = item;
