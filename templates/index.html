@@ -3,21 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Grafik Formasyonları Panosu</title>
+    <title>Gelişmiş Grafik Formasyonları</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- TradingView Lightweight Charts -->
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
     <header class="top-header">
-        <h1>Grafik Formasyonları</h1>
+        <h1>Grafik Formasyonları Panosu</h1>
         <div class="controls-container">
             <div class="control-group">
                 <label>Tarama Limiti</label>
                 <select id="scanLimit">
                     <option value="50">Top 50 Coin</option>
                     <option value="100">Top 100 Coin</option>
-                    <option value="200">Top 200 Coin</option>
+                    <option value="200" selected>Top 200 Coin</option>
                 </select>
             </div>
             
@@ -25,9 +27,9 @@
                 <label>Zaman Dilimi</label>
                 <select id="timeframe">
                     <option value="15m">15 Dakika</option>
-                    <option value="1 Saat" selected>1 Saat</option>
+                    <option value="1 Saat">1 Saat</option>
                     <option value="4 Saat">4 Saat</option>
-                    <option value="1 Gün">1 Gün</option>
+                    <option value="1 Gün" selected>1 Gün</option>
                 </select>
             </div>
 
@@ -50,9 +52,9 @@
                     <th>COİN</th>
                     <th>BORSA</th>
                     <th>ZAMAN DİLİMİ</th>
-                    <th>FORMASYON</th>
+                    <th>FORMASYON / TREND</th>
                     <th>YÖN</th>
-                    <th>GRAFİK</th>
+                    <th>GRAFİK & ANALİZ</th>
                 </tr>
             </thead>
             <tbody id="resultsBody">
@@ -64,11 +66,35 @@
         
         <div id="loader" class="loader-container" style="display: none;">
             <div class="spinner"></div>
-            <p>Piyasalar taranıyor, lütfen bekleyin...</p>
+            <p>Gelişmiş Algoritma ile Piyasalar taranıyor (OBO, Üçgen, Takoz, RSI, MA)...</p>
         </div>
     </main>
 
+    <!-- Modal for Charting -->
+    <div id="chartModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" id="closeModal">&times;</span>
+            <h2 id="modalTitle">Coin Analizi</h2>
+            <div class="modal-info">
+                <span id="modalSupport" class="badge badge-support">Destek: -</span>
+                <span id="modalResistance" class="badge badge-resistance">Direnç: -</span>
+            </div>
+            <div id="tvchart" style="width: 100%; height: 500px; margin-top: 15px;"></div>
+        </div>
+    </div>
+
     <script>
+        let chart = null;
+        let mainSeries = null;
+        let rsiSeries = null;
+        let sma20Series = null;
+        let sma50Series = null;
+        let supportLine = null;
+        let resistanceLine = null;
+
+        // Ensure global chart data storage
+        window.cryptoData = {};
+
         document.getElementById('scanBtn').addEventListener('click', async () => {
             const limit = document.getElementById('scanLimit').value;
             const timeframe = document.getElementById('timeframe').value;
@@ -92,26 +118,26 @@
                         </tr>
                     `;
                 } else {
-                    data.forEach(item => {
+                    data.forEach((item, index) => {
+                        // Store chart data for later modal use
+                        const id = `coin-${index}`;
+                        window.cryptoData[id] = item;
+
                         const tr = document.createElement('tr');
-                        
-                        let directionColor = item.direction === 'Yükseliş' ? 'color-green' : 'color-red';
+                        let directionColor = item.direction === 'Yükseliş' ? 'color-green' : (item.direction === 'Düşüş' ? 'color-red' : 'color-white');
                         
                         tr.innerHTML = `
                             <td class="coin-name">${item.coin}</td>
                             <td>${item.exchange}</td>
                             <td>${item.timeframe}</td>
-                            <td>${item.formation}</td>
+                            <td style="font-weight: 600;">${item.formation}</td>
                             <td class="${directionColor}">${item.direction}</td>
-                            <td><a href="${item.chart_link}" target="_blank" class="chart-btn">İncele</a></td>
+                            <td><button class="chart-btn" onclick="openChartModal('${id}')">Grafik İncele</button></td>
                         `;
                         tbody.appendChild(tr);
                     });
                 }
-                
-                // Hızlı arama filtresini uygula
                 filterTable();
-                
             } catch (error) {
                 console.error("Error fetching data:", error);
                 loader.style.display = 'none';
@@ -137,6 +163,97 @@
                     row.style.display = 'none';
                 }
             });
+        }
+
+        // Modal Logic
+        const modal = document.getElementById('chartModal');
+        const closeBtn = document.getElementById('closeModal');
+
+        closeBtn.onclick = function() {
+            modal.style.display = "none";
+        }
+        window.onclick = function(event) {
+            if (event.target == modal) {
+                modal.style.display = "none";
+            }
+        }
+
+        function openChartModal(id) {
+            const item = window.cryptoData[id];
+            if (!item) return;
+
+            document.getElementById('modalTitle').textContent = `${item.coin} - ${item.formation} (${item.timeframe})`;
+            document.getElementById('modalSupport').textContent = `Destek: ${item.support || 'Yok'}`;
+            document.getElementById('modalResistance').textContent = `Direnç: ${item.resistance || 'Yok'}`;
+            
+            modal.style.display = "block";
+
+            initOrUpdateChart(item);
+        }
+
+        function initOrUpdateChart(item) {
+            const chartContainer = document.getElementById('tvchart');
+            
+            // Destroy previous chart instance if exists
+            if (chart !== null) {
+                chart.remove();
+                chart = null;
+            }
+
+            const chartOptions = {
+                layout: { textColor: '#d1d4dc', background: { type: 'solid', color: '#131722' } },
+                grid: {
+                    vertLines: { color: '#2b2b43' },
+                    horzLines: { color: '#2b2b43' }
+                },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#2b2b43' },
+                timeScale: { borderColor: '#2b2b43', timeVisible: true }
+            };
+
+            chart = LightweightCharts.createChart(chartContainer, chartOptions);
+
+            // Create Candlestick Series
+            mainSeries = chart.addCandlestickSeries({
+                upColor: '#26a69a',
+                downColor: '#ef5350',
+                borderVisible: false,
+                wickUpColor: '#26a69a',
+                wickDownColor: '#ef5350'
+            });
+            mainSeries.setData(item.chartData.candles);
+
+            // Add S/R Lines
+            if (item.support) {
+                mainSeries.createPriceLine({
+                    price: item.support,
+                    color: '#2962FF',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: 'Destek',
+                });
+            }
+            if (item.resistance) {
+                mainSeries.createPriceLine({
+                    price: item.resistance,
+                    color: '#FF6D00',
+                    lineWidth: 2,
+                    lineStyle: LightweightCharts.LineStyle.Dashed,
+                    axisLabelVisible: true,
+                    title: 'Direnç',
+                });
+            }
+
+            // Create SMA 20 (Yellow)
+            sma20Series = chart.addLineSeries({ color: 'rgba(255, 204, 0, 0.7)', lineWidth: 1, title: 'SMA 20' });
+            sma20Series.setData(item.chartData.sma20.filter(d => !isNaN(d.value)));
+
+            // Create SMA 50 (Blue)
+            sma50Series = chart.addLineSeries({ color: 'rgba(33, 150, 243, 0.7)', lineWidth: 2, title: 'SMA 50' });
+            sma50Series.setData(item.chartData.sma50.filter(d => !isNaN(d.value)));
+
+            chart.timeScale().fitContent();
         }
     </script>
 </body>
