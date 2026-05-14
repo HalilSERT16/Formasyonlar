@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='index.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <!-- TradingView Lightweight Charts -->
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 
@@ -65,7 +65,16 @@
         </table>
         
         <div id="loader" class="loader-container" style="display: none;">
-            <div class="spinner"></div>
+            <div class="circuit-loader">
+                <div class="loader-grid"></div>
+                <span class="cb cb-tl"></span>
+                <span class="cb cb-tr"></span>
+                <span class="cb cb-bl"></span>
+                <span class="cb cb-br"></span>
+                <div class="scan-h"></div>
+                <div class="scan-v"></div>
+                <div class="center-dot"></div>
+            </div>
             <p>Gelişmiş Algoritma ile Piyasalar taranıyor (OBO, Üçgen, Takoz, RSI, MA)...</p>
         </div>
     </main>
@@ -106,7 +115,11 @@
             loader.style.display = 'flex';
             
             try {
-                const response = await fetch(`/api/scan?limit=${limit}&interval=${timeframe}`);
+                const search = document.getElementById('quickSearch').value.trim();
+                const url = search
+                    ? `/api/scan?limit=${limit}&interval=${timeframe}&search=${encodeURIComponent(search)}`
+                    : `/api/scan?limit=${limit}&interval=${timeframe}`;
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 loader.style.display = 'none';

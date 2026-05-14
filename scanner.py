@@ -127,24 +127,42 @@ def detect_advanced_patterns(df, peaks, troughs):
         
     return None, None
 
-def scan_markets(limit=50, interval='1h'):
+def scan_markets(limit=50, interval='1h', symbols=None):
     try:
-        symbols, err = get_top_coins(limit)
-        if err or not symbols:
-            return {"error": f"Binance API'ye ulaşılamadı (Railway IP bloku veya Timeout). Detay: {err}"}
+        if symbols:
+            # Kullanıcı belirli coin(ler) girdi — sadece onları tara
+            pass
+        else:
+            symbols, err = get_top_coins(limit)
+            if err or not symbols:
+                return {"error": f"Binance API'ye ulaşılamadı (Railway IP bloku veya Timeout). Detay: {err}"}
             
         results = []
-        
+        specific_search = bool(symbols)  # Kullanıcı belirli coin girdiyse True
+
         for symbol in symbols:
             df = get_klines(symbol, interval, limit=200)
-            if df.empty: continue
-            
+            if df.empty:
+                if specific_search:
+                    results.append({
+                        "coin": symbol.replace('USDT', ''),
+                        "exchange": "Binance",
+                        "timeframe": interval,
+                        "formation": "Veri Alınamadı",
+                        "direction": "-",
+                        "support": None,
+                        "resistance": None,
+                        "chartData": {"candles": [], "rsi": [], "sma20": [], "sma50": []}
+                    })
+                continue
+
             df = calculate_indicators(df)
             peaks, troughs = find_extrema(df, order=5)
             support, resistance = find_support_resistance(df, peaks, troughs)
             formation, direction = detect_advanced_patterns(df, peaks, troughs)
-            
-            if formation:
+
+            # Belirli coin aranıyorsa formasyon bulunamasa da göster
+            if formation or specific_search:
                 df_chart = df.tail(100).copy()
                 candle_data = []
                 rsi_data = []
@@ -162,8 +180,8 @@ def scan_markets(limit=50, interval='1h'):
                     "coin": symbol.replace('USDT', ''),
                     "exchange": "Binance",
                     "timeframe": interval,
-                    "formation": formation,
-                    "direction": direction,
+                    "formation": formation or "Belirgin Formasyon Yok",
+                    "direction": direction or "-",
                     "support": round(support, 4) if support else None,
                     "resistance": round(resistance, 4) if resistance else None,
                     "chartData": {
