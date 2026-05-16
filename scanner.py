@@ -172,9 +172,15 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                 for index, row in df_chart.iterrows():
                     time_val = int(row['timestamp'].timestamp())
                     candle_data.append({'time': time_val, 'open': row['open'], 'high': row['high'], 'low': row['low'], 'close': row['close']})
-                    rsi_data.append({'time': time_val, 'value': row['RSI'] if not np.isnan(row['RSI']) else 0})
-                    sma20_data.append({'time': time_val, 'value': row['SMA_20'] if not np.isnan(row['SMA_20']) else row['close']})
-                    sma50_data.append({'time': time_val, 'value': row['SMA_50'] if not np.isnan(row['SMA_50']) else row['close']})
+                    
+                    rsi_val = row.get('RSI', 0)
+                    rsi_data.append({'time': time_val, 'value': rsi_val if not pd.isna(rsi_val) else 0})
+                    
+                    sma20_val = row.get('SMA_20', row['close'])
+                    sma20_data.append({'time': time_val, 'value': sma20_val if not pd.isna(sma20_val) else row['close']})
+                    
+                    sma50_val = row.get('SMA_50', row['close'])
+                    sma50_data.append({'time': time_val, 'value': sma50_val if not pd.isna(sma50_val) else row['close']})
 
                 results.append({
                     "coin": symbol.replace('USDT', ''),

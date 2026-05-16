@@ -25,7 +25,9 @@ def api_scan():
             '15m': '15m',
             '1 Saat': '1h',
             '4 Saat': '4h',
-            '1 Gün': '1d'
+            '1 Gün': '1d',
+            '1 Hafta': '1w',
+            '1 Ay': '1M'
         }
         
         binance_interval = interval_mapping.get(interval, '1h')
