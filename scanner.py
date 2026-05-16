@@ -36,14 +36,15 @@ def get_klines(symbol, interval, limit=200):
 
 
 def find_extrema(df, order=5):
-    closes = df['close'].values
+    highs = df['high'].values
+    lows = df['low'].values
     peaks = []
     troughs = []
     
-    for i in range(order, len(closes) - order):
-        if np.max(closes[i-order:i+order+1]) == closes[i]:
+    for i in range(order, len(df) - order):
+        if np.max(highs[i-order:i+order+1]) == highs[i]:
             peaks.append(i)
-        if np.min(closes[i-order:i+order+1]) == closes[i]:
+        if np.min(lows[i-order:i+order+1]) == lows[i]:
             troughs.append(i)
             
     return peaks, troughs
@@ -62,58 +63,117 @@ def detect_advanced_patterns(df, peaks, troughs):
         return None, None, []
         
     closes = df['close'].values
+    highs = df['high'].values
+    lows = df['low'].values
     timestamps = df['timestamp'].values
     
-    def get_point(idx):
-        return {'time': int(pd.Timestamp(timestamps[idx]).timestamp()), 'value': float(closes[idx])}
+    def get_point(idx, p_type='close'):
+        val = highs[idx] if p_type == 'high' else (lows[idx] if p_type == 'low' else closes[idx])
+        return {'time': int(pd.Timestamp(timestamps[idx]).timestamp()), 'value': float(val)}
 
-    recent_peaks = peaks[-3:]
-    recent_troughs = troughs[-3:]
+    recent_peaks = peaks[-4:]
+    recent_troughs = troughs[-4:]
     
+    # Üçlü Tepe (Triple Top)
+    if len(recent_peaks) >= 3:
+        p1_idx, p2_idx, p3_idx = recent_peaks[-3], recent_peaks[-2], recent_peaks[-1]
+        p1, p2, p3 = highs[p1_idx], highs[p2_idx], highs[p3_idx]
+        if max(p1, p2, p3) - min(p1, p2, p3) < 0.015 * min(p1, p2, p3):
+            return "Üçlü Tepe (Triple Top)", "Düşüş", [get_point(p1_idx, 'high'), get_point(p2_idx, 'high'), get_point(p3_idx, 'high')]
+
+    # Üçlü Dip (Triple Bottom)
+    if len(recent_troughs) >= 3:
+        t1_idx, t2_idx, t3_idx = recent_troughs[-3], recent_troughs[-2], recent_troughs[-1]
+        t1, t2, t3 = lows[t1_idx], lows[t2_idx], lows[t3_idx]
+        if max(t1, t2, t3) - min(t1, t2, t3) < 0.015 * min(t1, t2, t3):
+            return "Üçlü Dip (Triple Bottom)", "Yükseliş", [get_point(t1_idx, 'low'), get_point(t2_idx, 'low'), get_point(t3_idx, 'low')]
+
     # İkili Tepe
     if len(recent_peaks) >= 2:
         p1_idx, p2_idx = recent_peaks[-2], recent_peaks[-1]
-        p1, p2 = closes[p1_idx], closes[p2_idx]
-        if abs(p1 - p2) / p1 < 0.02:
-            return "İkili Tepe (Double Top)", "Düşüş", [get_point(p1_idx), get_point(p2_idx)]
+        p1, p2 = highs[p1_idx], highs[p2_idx]
+        if abs(p1 - p2) / p1 < 0.018:
+            return "İkili Tepe (Double Top)", "Düşüş", [get_point(p1_idx, 'high'), get_point(p2_idx, 'high')]
             
     # İkili Dip
     if len(recent_troughs) >= 2:
         t1_idx, t2_idx = recent_troughs[-2], recent_troughs[-1]
-        t1, t2 = closes[t1_idx], closes[t2_idx]
-        if abs(t1 - t2) / t1 < 0.02:
-            return "İkili Dip (Double Bottom)", "Yükseliş", [get_point(t1_idx), get_point(t2_idx)]
+        t1, t2 = lows[t1_idx], lows[t2_idx]
+        if abs(t1 - t2) / t1 < 0.018:
+            return "İkili Dip (Double Bottom)", "Yükseliş", [get_point(t1_idx, 'low'), get_point(t2_idx, 'low')]
 
-    # OBO
-    if len(recent_peaks) >= 3:
+    # OBO (Head & Shoulders)
+    if len(recent_peaks) >= 3 and len(recent_troughs) >= 2:
         p1_idx, p2_idx, p3_idx = recent_peaks[-3], recent_peaks[-2], recent_peaks[-1]
-        p1, p2, p3 = closes[p1_idx], closes[p2_idx], closes[p3_idx]
-        if p2 > p1 and p2 > p3 and abs(p1 - p3) / p1 < 0.03:
-            return "OBO (Head & Shoulders)", "Düşüş", [get_point(p1_idx), get_point(p2_idx), get_point(p3_idx)]
+        p1, p2, p3 = highs[p1_idx], highs[p2_idx], highs[p3_idx]
+        if p2 > p1 and p2 > p3 and abs(p1 - p3) / p1 < 0.035:
+            return "OBO (Head & Shoulders)", "Düşüş", [get_point(p1_idx, 'high'), get_point(p2_idx, 'high'), get_point(p3_idx, 'high')]
             
-    # TOBO
-    if len(recent_troughs) >= 3:
+    # TOBO (Ters OBO)
+    if len(recent_troughs) >= 3 and len(recent_peaks) >= 2:
         t1_idx, t2_idx, t3_idx = recent_troughs[-3], recent_troughs[-2], recent_troughs[-1]
-        t1, t2, t3 = closes[t1_idx], closes[t2_idx], closes[t3_idx]
-        if t2 < t1 and t2 < t3 and abs(t1 - t3) / t1 < 0.03:
-            return "TOBO (Ters OBO)", "Yükseliş", [get_point(t1_idx), get_point(t2_idx), get_point(t3_idx)]
+        t1, t2, t3 = lows[t1_idx], lows[t2_idx], lows[t3_idx]
+        if t2 < t1 and t2 < t3 and abs(t1 - t3) / t1 < 0.035:
+            return "TOBO (Ters OBO)", "Yükseliş", [get_point(t1_idx, 'low'), get_point(t2_idx, 'low'), get_point(t3_idx, 'low')]
             
-    # Üçgenler
+    # Fincan Kulp & Ters Fincan Kulp
+    if len(recent_peaks) >= 3 and len(recent_troughs) >= 2:
+        p1_idx, p2_idx = recent_peaks[-3], recent_peaks[-2]
+        p1, p2 = highs[p1_idx], highs[p2_idx]
+        if abs(p1 - p2)/p1 < 0.025 and recent_peaks[-1] > p2_idx:
+            # P1 ve P2 arası fincan, son tepe kulp
+            return "Fincan Kulp (Cup & Handle)", "Yükseliş", [get_point(p1_idx, 'high'), get_point(p2_idx, 'high'), get_point(recent_peaks[-1], 'high')]
+
+    # Dikdörtgen / Kanal (Rectangle)
+    if len(recent_peaks) >= 2 and len(recent_troughs) >= 2:
+        p1, p2 = highs[recent_peaks[-2]], highs[recent_peaks[-1]]
+        t1, t2 = lows[recent_troughs[-2]], lows[recent_troughs[-1]]
+        if abs(p1 - p2)/p1 < 0.015 and abs(t1 - t2)/t1 < 0.015:
+            pts = [get_point(recent_peaks[-2], 'high'), get_point(recent_troughs[-2], 'low'), get_point(recent_peaks[-1], 'high'), get_point(recent_troughs[-1], 'low')]
+            pts.sort(key=lambda x: x['time'])
+            return "Dikdörtgen Kanal (Rectangle)", "Yatay / Kırılım Bekleniyor", pts
+
+    # Üçgenler, Kamalar, Bayrak & Flama
     if len(recent_peaks) >= 2 and len(recent_troughs) >= 2:
         p1_idx, p2_idx = recent_peaks[-2], recent_peaks[-1]
         t1_idx, t2_idx = recent_troughs[-2], recent_troughs[-1]
-        p1, p2 = closes[p1_idx], closes[p2_idx]
-        t1, t2 = closes[t1_idx], closes[t2_idx]
+        p1, p2 = highs[p1_idx], highs[p2_idx]
+        t1, t2 = lows[t1_idx], lows[t2_idx]
         
-        pts = [get_point(p1_idx), get_point(t1_idx), get_point(p2_idx), get_point(t2_idx)]
+        pts = [get_point(p1_idx, 'high'), get_point(t1_idx, 'low'), get_point(p2_idx, 'high'), get_point(t2_idx, 'low')]
         pts.sort(key=lambda x: x['time'])
 
+        # Kamalar (Wedges)
+        if p2 < p1 and t2 < t1:
+            # Alçalan Kama (Falling Wedge) - Diplerin eğimi tepelerden daha yataysa veya tam tersi daralıyorsa
+            slope_p = (p2 - p1) / (p2_idx - p1_idx)
+            slope_t = (t2 - t1) / (t2_idx - t1_idx)
+            if abs(slope_p) > abs(slope_t):
+                return "Alçalan Kama (Falling Wedge)", "Yükseliş", pts
+            else:
+                return "Düşen Bayrak / Kanal (Bearish Flag)", "Düşüş", pts
+                
+        if p2 > p1 and t2 > t1:
+            # Yükselen Kama (Rising Wedge)
+            slope_p = (p2 - p1) / (p2_idx - p1_idx)
+            slope_t = (t2 - t1) / (t2_idx - t1_idx)
+            if abs(slope_t) > abs(slope_p):
+                return "Yükselen Kama (Rising Wedge)", "Düşüş", pts
+            else:
+                return "Yükselen Bayrak / Kanal (Bullish Flag)", "Yükseliş", pts
+
+        # Üçgenler (Triangles) & Flamalar (Pennants)
         if p2 < p1 and t2 > t1:
+            # Kısa sürede oluşmuşsa Flama, uzun süredeyse Simetrik Üçgen
+            if abs(p2_idx - p1_idx) < 15:
+                return "Flama (Pennant)", "Devam Formasyonu", pts
             return "Simetrik Üçgen (Daralan)", "Belirsiz / Kırılım Bekleniyor", pts
-        if abs(p1 - p2)/p1 < 0.02 and t2 > t1:
-            return "Yükselen Üçgen", "Yükseliş", pts
-        if p2 < p1 and abs(t1 - t2)/t1 < 0.02:
-            return "Alçalan Üçgen", "Düşüş", pts
+            
+        if abs(p1 - p2)/p1 < 0.015 and t2 > t1:
+            return "Yükselen Üçgen (Ascending Triangle)", "Yükseliş", pts
+            
+        if p2 < p1 and abs(t1 - t2)/t1 < 0.015:
+            return "Alçalan Üçgen (Descending Triangle)", "Düşüş", pts
 
     return None, None, []
 
