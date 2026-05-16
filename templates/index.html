@@ -247,6 +247,23 @@
             });
             mainSeries.setData(item.chartData.candles);
 
+            // Tepe ve Dipler (Markers)
+            if (item.chartData.markers && item.chartData.markers.length > 0) {
+                mainSeries.setMarkers(item.chartData.markers);
+            }
+
+            // Formasyon Çizgisi (Polyline)
+            if (item.chartData.patternPoints && item.chartData.patternPoints.length > 0) {
+                const patternSeries = chart.addLineSeries({
+                    color: '#facc15',
+                    lineWidth: 3,
+                    lineStyle: LightweightCharts.LineStyle.Solid,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+                patternSeries.setData(item.chartData.patternPoints);
+            }
+
             // Add S/R Lines
             if (item.support) {
                 mainSeries.createPriceLine({

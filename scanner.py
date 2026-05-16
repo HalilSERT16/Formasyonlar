@@ -57,44 +57,63 @@ def find_support_resistance(df, peaks, troughs):
 
 def detect_advanced_patterns(df, peaks, troughs):
     if len(peaks) < 2 or len(troughs) < 2:
-        return None, None
+        return None, None, []
         
     closes = df['close'].values
+    timestamps = df['timestamp'].values
     
+    def get_point(idx):
+        return {'time': int(pd.Timestamp(timestamps[idx]).timestamp()), 'value': float(closes[idx])}
+
     recent_peaks = peaks[-3:]
     recent_troughs = troughs[-3:]
     
+    # İkili Tepe
     if len(recent_peaks) >= 2:
-        p1, p2 = closes[recent_peaks[-2]], closes[recent_peaks[-1]]
+        p1_idx, p2_idx = recent_peaks[-2], recent_peaks[-1]
+        p1, p2 = closes[p1_idx], closes[p2_idx]
         if abs(p1 - p2) / p1 < 0.02:
-            return "İkili Tepe (Double Top)", "Düşüş"
+            return "İkili Tepe (Double Top)", "Düşüş", [get_point(p1_idx), get_point(p2_idx)]
             
+    # İkili Dip
     if len(recent_troughs) >= 2:
-        t1, t2 = closes[recent_troughs[-2]], closes[recent_troughs[-1]]
+        t1_idx, t2_idx = recent_troughs[-2], recent_troughs[-1]
+        t1, t2 = closes[t1_idx], closes[t2_idx]
         if abs(t1 - t2) / t1 < 0.02:
-            return "İkili Dip (Double Bottom)", "Yükseliş"
+            return "İkili Dip (Double Bottom)", "Yükseliş", [get_point(t1_idx), get_point(t2_idx)]
 
+    # OBO
     if len(recent_peaks) >= 3:
-        p1, p2, p3 = closes[recent_peaks[-3]], closes[recent_peaks[-2]], closes[recent_peaks[-1]]
+        p1_idx, p2_idx, p3_idx = recent_peaks[-3], recent_peaks[-2], recent_peaks[-1]
+        p1, p2, p3 = closes[p1_idx], closes[p2_idx], closes[p3_idx]
         if p2 > p1 and p2 > p3 and abs(p1 - p3) / p1 < 0.03:
-            return "OBO (Head & Shoulders)", "Düşüş"
+            return "OBO (Head & Shoulders)", "Düşüş", [get_point(p1_idx), get_point(p2_idx), get_point(p3_idx)]
             
+    # TOBO
     if len(recent_troughs) >= 3:
-        t1, t2, t3 = closes[recent_troughs[-3]], closes[recent_troughs[-2]], closes[recent_troughs[-1]]
+        t1_idx, t2_idx, t3_idx = recent_troughs[-3], recent_troughs[-2], recent_troughs[-1]
+        t1, t2, t3 = closes[t1_idx], closes[t2_idx], closes[t3_idx]
         if t2 < t1 and t2 < t3 and abs(t1 - t3) / t1 < 0.03:
-            return "TOBO (Ters OBO)", "Yükseliş"
+            return "TOBO (Ters OBO)", "Yükseliş", [get_point(t1_idx), get_point(t2_idx), get_point(t3_idx)]
             
+    # Üçgenler
     if len(recent_peaks) >= 2 and len(recent_troughs) >= 2:
-        p1, p2 = closes[recent_peaks[-2]], closes[recent_peaks[-1]]
-        t1, t2 = closes[recent_troughs[-2]], closes[recent_troughs[-1]]
-        if p2 < p1 and t2 > t1:
-            return "Simetrik Üçgen (Daralan)", "Belirsiz / Kırılım Bekleniyor"
-        if abs(p1 - p2)/p1 < 0.02 and t2 > t1:
-            return "Yükselen Üçgen", "Yükseliş"
-        if p2 < p1 and abs(t1 - t2)/t1 < 0.02:
-            return "Alçalan Üçgen", "Düşüş"
+        p1_idx, p2_idx = recent_peaks[-2], recent_peaks[-1]
+        t1_idx, t2_idx = recent_troughs[-2], recent_troughs[-1]
+        p1, p2 = closes[p1_idx], closes[p2_idx]
+        t1, t2 = closes[t1_idx], closes[t2_idx]
+        
+        pts = [get_point(p1_idx), get_point(t1_idx), get_point(p2_idx), get_point(t2_idx)]
+        pts.sort(key=lambda x: x['time'])
 
-    return None, None
+        if p2 < p1 and t2 > t1:
+            return "Simetrik Üçgen (Daralan)", "Belirsiz / Kırılım Bekleniyor", pts
+        if abs(p1 - p2)/p1 < 0.02 and t2 > t1:
+            return "Yükselen Üçgen", "Yükseliş", pts
+        if p2 < p1 and abs(t1 - t2)/t1 < 0.02:
+            return "Alçalan Üçgen", "Düşüş", pts
+
+    return None, None, []
 
 def scan_markets(limit=50, interval='1h', symbols=None):
     try:
@@ -128,7 +147,7 @@ def scan_markets(limit=50, interval='1h', symbols=None):
 
             peaks, troughs = find_extrema(df, order=5)
             support, resistance = find_support_resistance(df, peaks, troughs)
-            formation, direction = detect_advanced_patterns(df, peaks, troughs)
+            formation, direction, pattern_points = detect_advanced_patterns(df, peaks, troughs)
 
             # Belirli coin aranıyorsa formasyon bulunamasa da göster
             if formation or specific_search:
@@ -137,6 +156,27 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                 for index, row in df_chart.iterrows():
                     time_val = int(row['timestamp'].timestamp())
                     candle_data.append({'time': time_val, 'open': row['open'], 'high': row['high'], 'low': row['low'], 'close': row['close']})
+
+                # Collect all peak/trough markers for the chart
+                markers = []
+                for p_idx in peaks:
+                    if p_idx >= df.index[-100]:
+                        markers.append({
+                            'time': int(df.iloc[p_idx]['timestamp'].timestamp()),
+                            'position': 'aboveBar',
+                            'color': '#ef5350',
+                            'shape': 'arrowDown',
+                            'text': 'Tepe'
+                        })
+                for t_idx in troughs:
+                    if t_idx >= df.index[-100]:
+                        markers.append({
+                            'time': int(df.iloc[t_idx]['timestamp'].timestamp()),
+                            'position': 'belowBar',
+                            'color': '#26a69a',
+                            'shape': 'arrowUp',
+                            'text': 'Dip'
+                        })
 
                 results.append({
                     "coin": symbol.replace('USDT', ''),
@@ -147,7 +187,9 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                     "support": round(support, 4) if support else None,
                     "resistance": round(resistance, 4) if resistance else None,
                     "chartData": {
-                        "candles": candle_data
+                        "candles": candle_data,
+                        "patternPoints": pattern_points,
+                        "markers": markers
                     }
                 })
                 
