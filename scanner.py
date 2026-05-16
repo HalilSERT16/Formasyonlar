@@ -31,28 +31,7 @@ def get_klines(symbol, interval, limit=200):
     except Exception as e:
         return pd.DataFrame()
 
-def calculate_rsi(series, period=14):
-    delta = series.diff()
-    up = delta.clip(lower=0)
-    down = -1 * delta.clip(upper=0)
-    ema_up = up.ewm(com=period - 1, adjust=False).mean()
-    ema_down = down.ewm(com=period - 1, adjust=False).mean()
-    rs = ema_up / ema_down
-    return 100 - (100 / (1 + rs))
 
-def calculate_indicators(df):
-    if df.empty or len(df) < 20: return df
-    
-    # Calculate RSI
-    df['RSI'] = calculate_rsi(df['close'], 14)
-    
-    # Calculate MAs
-    df['SMA_20'] = df['close'].rolling(window=20).mean()
-    df['SMA_50'] = df['close'].rolling(window=50).mean()
-    df['SMA_200'] = df['close'].rolling(window=200).mean()
-    
-    df.bfill(inplace=True)
-    return df
 
 def find_extrema(df, order=5):
     closes = df['close'].values
@@ -115,16 +94,6 @@ def detect_advanced_patterns(df, peaks, troughs):
         if p2 < p1 and abs(t1 - t2)/t1 < 0.02:
             return "Alçalan Üçgen", "Düşüş"
 
-    current_price = closes[-1]
-    sma50 = df['SMA_50'].iloc[-1] if not np.isnan(df['SMA_50'].iloc[-1]) else 0
-    sma200 = df['SMA_200'].iloc[-1] if not np.isnan(df['SMA_200'].iloc[-1]) else 0
-    
-    if sma50 and sma200:
-        if current_price > sma50 and current_price > sma200:
-            return "Yükseliş Trendi (SMA Üzeri)", "Yükseliş"
-        elif current_price < sma50 and current_price < sma200:
-            return "Düşüş Trendi (SMA Altı)", "Düşüş"
-        
     return None, None
 
 def scan_markets(limit=50, interval='1h', symbols=None):
@@ -152,11 +121,11 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                         "direction": "-",
                         "support": None,
                         "resistance": None,
-                        "chartData": {"candles": [], "rsi": [], "sma20": [], "sma50": []}
+                        "chartData": {"candles": []}
                     })
                 continue
 
-            df = calculate_indicators(df)
+
             peaks, troughs = find_extrema(df, order=5)
             support, resistance = find_support_resistance(df, peaks, troughs)
             formation, direction = detect_advanced_patterns(df, peaks, troughs)
@@ -165,22 +134,9 @@ def scan_markets(limit=50, interval='1h', symbols=None):
             if formation or specific_search:
                 df_chart = df.tail(100).copy()
                 candle_data = []
-                rsi_data = []
-                sma20_data = []
-                sma50_data = []
-                
                 for index, row in df_chart.iterrows():
                     time_val = int(row['timestamp'].timestamp())
                     candle_data.append({'time': time_val, 'open': row['open'], 'high': row['high'], 'low': row['low'], 'close': row['close']})
-                    
-                    rsi_val = row.get('RSI', 0)
-                    rsi_data.append({'time': time_val, 'value': rsi_val if not pd.isna(rsi_val) else 0})
-                    
-                    sma20_val = row.get('SMA_20', row['close'])
-                    sma20_data.append({'time': time_val, 'value': sma20_val if not pd.isna(sma20_val) else row['close']})
-                    
-                    sma50_val = row.get('SMA_50', row['close'])
-                    sma50_data.append({'time': time_val, 'value': sma50_val if not pd.isna(sma50_val) else row['close']})
 
                 results.append({
                     "coin": symbol.replace('USDT', ''),
@@ -191,10 +147,7 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                     "support": round(support, 4) if support else None,
                     "resistance": round(resistance, 4) if resistance else None,
                     "chartData": {
-                        "candles": candle_data,
-                        "rsi": rsi_data,
-                        "sma20": sma20_data,
-                        "sma50": sma50_data
+                        "candles": candle_data
                     }
                 })
                 

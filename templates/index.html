@@ -78,7 +78,7 @@
                 <div class="scan-v"></div>
                 <div class="center-dot"></div>
             </div>
-            <p>Gelişmiş Algoritma ile Piyasalar taranıyor (OBO, Üçgen, Takoz, RSI, MA)...</p>
+            <p>Gelişmiş Algoritma ile Piyasalar taranıyor (OBO, Üçgen, Takoz, Destek/Direnç)...</p>
         </div>
     </main>
 
@@ -98,9 +98,6 @@
     <script>
         let chart = null;
         let mainSeries = null;
-        let rsiSeries = null;
-        let sma20Series = null;
-        let sma50Series = null;
         let supportLine = null;
         let resistanceLine = null;
 
@@ -272,13 +269,7 @@
                 });
             }
 
-            // Create SMA 20 (Yellow)
-            sma20Series = chart.addLineSeries({ color: 'rgba(255, 204, 0, 0.7)', lineWidth: 1, title: 'SMA 20' });
-            sma20Series.setData(item.chartData.sma20.filter(d => !isNaN(d.value)));
 
-            // Create SMA 50 (Blue)
-            sma50Series = chart.addLineSeries({ color: 'rgba(33, 150, 243, 0.7)', lineWidth: 2, title: 'SMA 50' });
-            sma50Series.setData(item.chartData.sma50.filter(d => !isNaN(d.value)));
 
             chart.timeScale().fitContent();
         }
