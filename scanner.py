@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 
 BINANCE_API_URL = "https://data-api.binance.vision/api/v3"
+STABLECOINS = ['USDCUSDT', 'FDUSDUSDT', 'TUSDUSDT', 'DAIUSDT', 'USDPUSDT', 'AEURUSDT', 'BUSDUSDT', 'USDEUSDT', 'EURUSDT', 'GBPUSDT', 'USDSUSDT']
+
 
 def get_top_coins(limit=50):
     try:
@@ -10,7 +12,7 @@ def get_top_coins(limit=50):
         response = requests.get(url, timeout=10)
         response.raise_for_status() # Raise error for 403, 429, etc.
         data = response.json()
-        usdt_pairs = [d for d in data if d['symbol'].endswith('USDT')]
+        usdt_pairs = [d for d in data if d['symbol'].endswith('USDT') and d['symbol'] not in STABLECOINS]
         usdt_pairs.sort(key=lambda x: float(x['quoteVolume']), reverse=True)
         return [pair['symbol'] for pair in usdt_pairs[:limit]], None
     except Exception as e:
@@ -131,17 +133,6 @@ def scan_markets(limit=50, interval='1h', symbols=None):
         for symbol in symbols:
             df = get_klines(symbol, interval, limit=200)
             if df.empty:
-                if specific_search:
-                    results.append({
-                        "coin": symbol.replace('USDT', ''),
-                        "exchange": "Binance",
-                        "timeframe": interval,
-                        "formation": "Veri Alınamadı",
-                        "direction": "-",
-                        "support": None,
-                        "resistance": None,
-                        "chartData": {"candles": []}
-                    })
                 continue
 
 
@@ -150,7 +141,8 @@ def scan_markets(limit=50, interval='1h', symbols=None):
             formation, direction, pattern_points = detect_advanced_patterns(df, peaks, troughs)
 
             # Belirli coin aranıyorsa formasyon bulunamasa da göster
-            if formation or specific_search:
+            # Sadece formasyon bulunan coinleri listele
+            if formation:
                 df_chart = df.tail(100).copy()
                 candle_data = []
                 for index, row in df_chart.iterrows():
@@ -182,7 +174,7 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                     "coin": symbol.replace('USDT', ''),
                     "exchange": "Binance",
                     "timeframe": interval,
-                    "formation": formation or "Belirgin Formasyon Yok",
+                    "formation": formation,
                     "direction": direction or "-",
                     "support": round(support, 4) if support else None,
                     "resistance": round(resistance, 4) if resistance else None,
