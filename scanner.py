@@ -160,7 +160,7 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                 # Collect all peak/trough markers for the chart
                 markers = []
                 for p_idx in peaks:
-                    if p_idx >= df.index[-100]:
+                    if p_idx >= max(0, len(df) - 100):
                         markers.append({
                             'time': int(df.iloc[p_idx]['timestamp'].timestamp()),
                             'position': 'aboveBar',
@@ -169,7 +169,7 @@ def scan_markets(limit=50, interval='1h', symbols=None):
                             'text': 'Tepe'
                         })
                 for t_idx in troughs:
-                    if t_idx >= df.index[-100]:
+                    if t_idx >= max(0, len(df) - 100):
                         markers.append({
                             'time': int(df.iloc[t_idx]['timestamp'].timestamp()),
                             'position': 'belowBar',
