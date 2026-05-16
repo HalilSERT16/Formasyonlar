@@ -1,4 +1,5 @@
-from flask import Flask, render_template, jsonify, request
+import os
+from flask import Flask, render_template, jsonify, request, send_from_directory
 import scanner
 
 app = Flask(__name__)
@@ -6,6 +7,11 @@ app = Flask(__name__)
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/favicon.ico')
+def favicon():
+    return send_from_directory(os.path.join(app.root_path, 'static'),
+                               'favicon.png', mimetype='image/png')
 
 @app.route('/api/scan')
 def api_scan():
